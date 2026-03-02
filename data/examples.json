@@ -1,0 +1,62 @@
+[
+  {
+    "question": "Какая выручка была вчера?",
+    "sql": "SELECT COALESCE(SUM(totalamount), 0) AS revenue FROM orders WHERE orderdate = CURRENT_DATE - INTERVAL '1 day';"
+  },
+  {
+    "question": "Сколько денег мы заработали позавчера?",
+    "sql": "SELECT COALESCE(SUM(totalamount), 0) AS revenue FROM orders WHERE orderdate = CURRENT_DATE - INTERVAL '2 days';"
+  },
+  {
+    "question": "Какая выручка за прошлый месяц?",
+    "sql": "SELECT COALESCE(SUM(totalamount), 0) AS revenue_last_month FROM orders WHERE orderdate >= DATE_TRUNC('month', CURRENT_DATE - INTERVAL '1 month') AND orderdate < DATE_TRUNC('month', CURRENT_DATE);"
+  },
+  {
+    "question": "Сколько было выручки в марте 2023 года?",
+    "sql": "SELECT COALESCE(SUM(totalamount), 0) AS revenue FROM orders WHERE orderdate >= '2023-03-01' AND orderdate < '2023-04-01';"
+  },
+  {
+    "question": "Какой был средний чек за последний квартал?",
+    "sql": "SELECT COALESCE(AVG(totalamount), 0) AS avg_check FROM orders WHERE orderdate >= DATE_TRUNC('quarter', CURRENT_DATE - INTERVAL '3 months') AND orderdate < DATE_TRUNC('quarter', CURRENT_DATE);"
+  },
+  {
+    "question": "В какой день была самая большая выручка?",
+    "sql": "SELECT orderdate, COALESCE(SUM(totalamount), 0) AS daily_revenue FROM orders GROUP BY orderdate ORDER BY daily_revenue DESC LIMIT 1;"
+  },
+  {
+    "question": "Топ-5 категорий по выручке за всё время",
+    "sql": "SELECT category, COALESCE(SUM(quantity * unitprice * (1 - discount)), 0) AS revenue FROM order_items GROUP BY category ORDER BY revenue DESC LIMIT 5;"
+  },
+  {
+    "question": "Какие бренды продаются лучше всего (по количеству штук)?",
+    "sql": "SELECT brand, SUM(quantity) AS total_quantity FROM order_items GROUP BY brand ORDER BY total_quantity DESC LIMIT 5;"
+  },
+  {
+    "question": "Сколько всего потратили на доставку за 2024 год?",
+    "sql": "SELECT COALESCE(SUM(shippingcost), 0) AS total_shipping_cost FROM orders WHERE orderdate >= '2024-01-01' AND orderdate < '2025-01-01';"
+  },
+  {
+    "question": "Сколько заказов отменили за последнюю неделю?",
+    "sql": "SELECT COUNT(*) AS cancelled_count FROM orders WHERE orderstatus = 'Cancelled' AND orderdate >= CURRENT_DATE - INTERVAL '7 days';"
+  },
+  {
+    "question": "Какая выручка по категории \"Electronics\" за январь 2024?",
+    "sql": "SELECT COALESCE(SUM(oi.quantity * oi.unitprice * (1 - oi.discount)), 0) AS revenue FROM order_items oi JOIN orders o ON oi.orderid = o.orderid WHERE oi.category = 'Electronics' AND o.orderdate >= '2024-01-01' AND o.orderdate < '2024-02-01';"
+  },
+  {
+    "question": "Сколько уникальных клиентов сделали заказы в прошлом месяце?",
+    "sql": "SELECT COUNT(DISTINCT customerid) AS unique_customers FROM orders WHERE orderdate >= DATE_TRUNC('month', CURRENT_DATE - INTERVAL '1 month') AND orderdate < DATE_TRUNC('month', CURRENT_DATE);"
+  },
+  {
+    "question": "В каких городах самая высокая средняя стоимость заказа?",
+    "sql": "SELECT city, COALESCE(AVG(totalamount), 0) AS avg_order_value FROM orders GROUP BY city ORDER BY avg_order_value DESC LIMIT 5;"
+  },
+  {
+    "question": "Выручка вчера по сравнению с позавчера",
+    "sql": "SELECT COALESCE(SUM(CASE WHEN orderdate = CURRENT_DATE - INTERVAL '1 day' THEN totalamount END), 0) AS yesterday, COALESCE(SUM(CASE WHEN orderdate = CURRENT_DATE - INTERVAL '2 days' THEN totalamount END), 0) AS day_before_yesterday FROM orders;"
+  },
+  {
+    "question": "Сколько позиций товаров (штук) продали в топ-категории за всё время?",
+    "sql": "WITH top_cat AS (SELECT category FROM order_items GROUP BY category ORDER BY SUM(quantity * unitprice * (1 - discount)) DESC LIMIT 1) SELECT SUM(quantity) AS total_items_sold FROM order_items WHERE category IN (SELECT category FROM top_cat);"
+  }
+]

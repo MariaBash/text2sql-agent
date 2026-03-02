@@ -1,18 +1,37 @@
-def build_prompt(user_question, rag_examples, schema_info):
-    """
-    user_question: str - вопрос пользователя
-    rag_examples: list[dict] - примеры из RAG
-    schema_info: str - краткое описание таблиц
-    """
-    prompt = f"Таблицы в базе: {schema_info}\n"
-    prompt += "Примеры логики запросов:\n"
-    
-    for ex in rag_examples:
-        prompt += f"Вопрос: {ex['question']}\n"
-        prompt += "Логика:\n"
-        for step in ex['logic']:
-            prompt += f"- {step}\n"
-    
-    prompt += f"\nСгенерируй SQL для вопроса: {user_question}\n"
-    prompt += "Только SQL, без объяснений."
-    return prompt
+from agent.rag_loader import RAGLoader
+
+class PromptGenerator:
+    def __init__(self, rag: RAGLoader):
+        self.rag = rag
+        self.schema = """
+-- Таблицы (адаптируй под свой датасет, если нужно):
+-- orders (orderid, orderdate, totalamount, orderstatus, customerid, city, shippingcost)
+-- order_items (orderitemid, orderid, quantity, unitprice, discount, category, brand)
+"""
+
+        self.template = """
+Ты эксперт по PostgreSQL. Напиши ТОЛЬКО SQL-запрос (без объяснений, без markdown кроме блока sql).
+
+Схема БД:
+{schema}
+
+Примеры (используй их стиль и структуру):
+{examples}
+
+Вопрос пользователя: "{question}"
+
+Ответь строго в формате:
+```sql
+ТВОЙ_SQL_ЗАПРОС
+"""
+
+    def generate(self, question: str, k: int = 5) -> str:
+        retrieved = self.rag.retrieve(question, k)
+        examples_str = "\n\n".join(
+        f"Вопрос: {ex['question']}\nSQL:\n{ex['sql']}" for ex in retrieved
+        )
+        return self.template.format(
+            schema=self.schema,
+            examples=examples_str,
+            question=question
+        )

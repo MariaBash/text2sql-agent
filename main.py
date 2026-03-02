@@ -1,56 +1,66 @@
-from agent.rag_loader import load_rag_examples
-from agent.prompt import build_prompt
-from agent.sql_exec import execute_sql
-import requests
-import os
-print(os.getenv("HF_API_TOKEN"))
-# --- Настройки Hugging Face API ---
-#HF_API_TOKEN = os.getenv("HF_API_TOKEN")  # сохраните токен в переменную окружения
-API_URL ="https://router.huggingface.co/hf-inference/models/google/flan-t5-base"
-headers = {"Authorization": f"Bearer {HF_API_TOKEN}"}
+from fastapi import FastAPI
+from pydantic import BaseModel
+import uvicorn
+import re
+from g4f import ChatCompletion
+# Импортируем наши модули
+from agent.rag_loader import RAGLoader
+from agent.prompt import PromptGenerator
+from agent.sql_exec import SQLValidatorExecutor
 
-def query_hf(prompt):
-    payload = {
-        "inputs": prompt,
-        "parameters": {
-            "max_new_tokens": 256,
-            "temperature": 0.0
-        }
+def call_llm(prompt: str) -> str:
+    import g4f
+    
+    try:
+        resp = g4f.ChatCompletion.create(
+            model="gpt-4",  # ← сюда можно подставить любую рабочую модель
+            messages=[
+                {"role": "system", "content": "Ты эксперт по PostgreSQL. Отвечай ТОЛЬКО SQL-запросом внутри блока ```sql ... ```. Никаких объяснений, комментариев и лишнего текста."},
+                {"role": "user",   "content": prompt},
+            ],
+        )
+        return resp
+    except Exception as e:
+        return f"LLM failed: {str(e)}"
+
+# Инициализация (один раз при старте)
+rag = RAGLoader()
+prompt_gen = PromptGenerator(rag)
+db_params = {  # ← подставь свои
+       "dbname":   "company_finance",
+        "user":     "finance",
+        "password": "mysecretpassword",               # ← поменяй на реальный пароль
+        "host":     "localhost",
+        "port":     "5432"
+}
+sql_exec = SQLValidatorExecutor(db_params)
+
+app = FastAPI(title="Text2SQL Agent Demo")
+
+class QueryRequest(BaseModel):
+    question: str
+
+@app.post("/query")
+async def query(request: QueryRequest):
+    # 1. Генерируем промт с RAG
+    prompt = prompt_gen.generate(request.question)
+    
+    # 2. Просим LLM
+    llm_response = call_llm(prompt)
+    
+    # 3. Извлекаем SQL
+    match = re.search(r"```sql\s*(.*?)\s*```", llm_response, re.DOTALL | re.IGNORECASE)
+    sql = match.group(1).strip() if match else llm_response.strip()
+    
+    # 4. Проверяем и выполняем
+    result = sql_exec.execute(sql)
+    
+    # Возвращаем ровно то, что нужно на интервью
+    return {
+        "sql": result.get("sql"),
+        "result": result.get("result", []),
+        "error": result.get("error")
     }
-    response = requests.post(API_URL, headers=headers, json=payload)
-
-    if response.status_code != 200:
-        print("HF error:", response.status_code, response.text)
-        raise RuntimeError("Ошибка запроса к Hugging Face API")
-
-    data = response.json()
-    return data[0]["generated_text"]
-
-# --- Загружаем RAG-примеры ---
-rag_examples = load_rag_examples(path="data/rag_examples.json")
-
-# --- Краткая схема базы для prompt ---
-schema_info = """
-orders(order_id, order_date, order_status, customer_id, customer_name, city, state, country, payment_method, tax, shipping_cost, total_amount)
-order_items(order_id, seller_id, product_id, product_name, category, brand, quantity, unit_price, discount)
-"""
-
-def ask_question(user_question):
-    # Строим prompt с RAG-примерами
-    prompt = build_prompt(user_question, rag_examples, schema_info)
-    
-    # Генерация SQL через Hugging Face API
-    sql_query = query_hf(prompt).strip()
-    
-    # Выполняем SQL
-    result = execute_sql(sql_query)
-    
-    return {"query": sql_query, "result": result}
 
 if __name__ == "__main__":
-    print("Text2SQL агент через Hugging Face API готов!")
-    question = input("Задайте вопрос: ")
-    output = ask_question(question)
-    
-    print("\nСгенерированный SQL:\n", output["query"])
-    print("\nРезультат:\n", output["result"])
+    uvicorn.run(app, host="0.0.0.0", port=8000)
