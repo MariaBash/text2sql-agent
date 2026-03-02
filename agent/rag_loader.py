@@ -4,7 +4,7 @@ import faiss
 import numpy as np
 
 class RAGLoader:
-    def __init__(self, examples_path: str = "data/examples.json"):
+    def __init__(self, examples_path: str = "data/rag_examples.json"):
         self.model = SentenceTransformer("paraphrase-multilingual-MiniLM-L12-v2")
         
         with open(examples_path, "r", encoding="utf-8") as f:

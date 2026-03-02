@@ -5,8 +5,8 @@ class PromptGenerator:
         self.rag = rag
         self.schema = """
 -- Таблицы (адаптируй под свой датасет, если нужно):
--- orders (orderid, orderdate, totalamount, orderstatus, customerid, city, shippingcost)
--- order_items (orderitemid, orderid, quantity, unitprice, discount, category, brand)
+-- orders (orderid, orderdate, orderstatus, customerid, customername, city, state, country, paymentmethod, tax, shippingcost, totalamount, sellerid )
+-- order_items (orderid, productid, productname, category, brand, quantity, unitprice, discount)
 """
 
         self.template = """

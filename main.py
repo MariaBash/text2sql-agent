@@ -3,7 +3,6 @@ from pydantic import BaseModel
 import uvicorn
 import re
 from g4f import ChatCompletion
-# Импортируем наши модули
 from agent.rag_loader import RAGLoader
 from agent.prompt import PromptGenerator
 from agent.sql_exec import SQLValidatorExecutor
@@ -13,7 +12,7 @@ def call_llm(prompt: str) -> str:
     
     try:
         resp = g4f.ChatCompletion.create(
-            model="gpt-4",  # ← сюда можно подставить любую рабочую модель
+            model="gpt-4", 
             messages=[
                 {"role": "system", "content": "Ты эксперт по PostgreSQL. Отвечай ТОЛЬКО SQL-запросом внутри блока ```sql ... ```. Никаких объяснений, комментариев и лишнего текста."},
                 {"role": "user",   "content": prompt},
@@ -23,19 +22,18 @@ def call_llm(prompt: str) -> str:
     except Exception as e:
         return f"LLM failed: {str(e)}"
 
-# Инициализация (один раз при старте)
 rag = RAGLoader()
 prompt_gen = PromptGenerator(rag)
-db_params = {  # ← подставь свои
+db_params = { 
        "dbname":   "company_finance",
         "user":     "finance",
-        "password": "mysecretpassword",               # ← поменяй на реальный пароль
+        "password": "mysecretpassword",              
         "host":     "localhost",
         "port":     "5432"
 }
 sql_exec = SQLValidatorExecutor(db_params)
 
-app = FastAPI(title="Text2SQL Agent Demo")
+app = FastAPI(title="Text2SQL Agent")
 
 class QueryRequest(BaseModel):
     question: str
@@ -54,8 +52,6 @@ async def query(request: QueryRequest):
     
     # 4. Проверяем и выполняем
     result = sql_exec.execute(sql)
-    
-    # Возвращаем ровно то, что нужно на интервью
     return {
         "sql": result.get("sql"),
         "result": result.get("result", []),

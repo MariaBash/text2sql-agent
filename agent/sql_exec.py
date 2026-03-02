@@ -36,7 +36,7 @@ class SQLValidatorExecutor:
                 with conn.cursor() as cur:
                     cur.execute(sql)
                     
-                    if cur.description:  # SELECT
+                    if cur.description: 
                         columns = [desc[0] for desc in cur.description]
                         rows = cur.fetchall()
                         result = [self._serialize_row(row, columns) for row in rows]
