@@ -6,6 +6,7 @@ from g4f import ChatCompletion
 from agent.rag_loader import RAGLoader
 from agent.prompt import PromptGenerator
 from agent.sql_exec import SQLValidatorExecutor
+from agent.cache_manager import CacheManager
 
 def call_llm(prompt: str) -> str:
     import g4f
@@ -38,25 +39,38 @@ app = FastAPI(title="Text2SQL Agent")
 class QueryRequest(BaseModel):
     question: str
 
+cache = CacheManager(db_params) 
+
 @app.post("/query")
 async def query(request: QueryRequest):
-    # 1. Генерируем промт с RAG
-    prompt = prompt_gen.generate(request.question)
+    cached_sql = cache.get_cached_sql(request.question)
     
-    # 2. Просим LLM
+    if cached_sql:
+        result = sql_exec.execute(cached_sql)
+        return {
+            "question": request.question,
+            "sql": cached_sql,
+            "result": result.get("result", []),
+            "error": result.get("error"),
+            "from_cache": True
+        }
+
+    prompt = prompt_gen.generate(request.question)
     llm_response = call_llm(prompt)
     
-    # 3. Извлекаем SQL
     match = re.search(r"```sql\s*(.*?)\s*```", llm_response, re.DOTALL | re.IGNORECASE)
     sql = match.group(1).strip() if match else llm_response.strip()
     
-    # 4. Проверяем и выполняем
     result = sql_exec.execute(sql)
-    return {
-        "sql": result.get("sql"),
-        "result": result.get("result", []),
-        "error": result.get("error")
-    }
+    if not result.get("error"):
+        cache.save_to_cache(request.question, sql)
 
+    return {
+        "question": request.question,
+        "sql": sql,
+        "result": result.get("result", []),
+        "error": result.get("error"),
+        "from_cache": False
+    }
 if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=8000)
